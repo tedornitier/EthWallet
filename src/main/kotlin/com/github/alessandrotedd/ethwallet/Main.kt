@@ -1,3 +1,5 @@
+package com.github.alessandrotedd.ethwallet
+
 import org.web3j.crypto.Keys
 import java.security.MessageDigest
 import java.util.*
