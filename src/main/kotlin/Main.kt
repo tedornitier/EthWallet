@@ -10,16 +10,55 @@ import javax.crypto.spec.SecretKeySpec
 import kotlin.concurrent.thread
 import kotlin.math.pow
 
-fun main() {
-    println(generatePrivateKey(hexize("caffe")))
+fun main(args: Array<String>) {
+    var prefix = ""
+    var key: String? = null
+
+    args.forEachIndexed { index, arg ->
+        when (arg) {
+            "--help", "-h" -> { showHelp(); return@main }
+            "--prefix", "-p" -> args.getOrNull(index + 1)?.let { prefix = it } ?: run { showHelp(); return@main }
+            "--key", "-k" -> args.getOrNull(index + 1)?.let { key = it } ?: run { showHelp(); return@main }
+        }
+    }
+
+    println(when {
+        prefix.isEmpty() && key == null -> "Generating random private key"
+        prefix.isEmpty() && key != null -> "Generating random private key and encrypting it with key \"$key\""
+        prefix.isNotEmpty() && key == null -> "Generating private key for addresses starting with: $prefix"
+        prefix.isNotEmpty() && key != null -> "Generating private key for addresses starting with: $prefix and encrypting it with key \"$key\""
+        else -> ""
+    })
+
+    generatePrivateKey(hexize(prefix)).let { wallet ->
+        val address = wallet.first
+        val privateKey = wallet.second
+        println("Address: 0x$address")
+        key?.let {
+            encryptString(privateKey, it)
+        } ?: run {
+            privateKey
+        }
+    }.also { privateKey ->
+        println("Private key ${
+            if (key != null) "encrypted with key \"$key\""
+            else "not encrypted"
+        }: $privateKey")
+    }
 }
 
-fun generatePrivateKey(vararg addressPrefixes: String): String {
-    println("Generating private key for addresses starting with: ${addressPrefixes.joinToString(", ")}")
-    val possibleChoices = 16.0.pow(addressPrefixes[0].length)
-    println("Possible choices for #1: ${possibleChoices.toInt()}")
+fun showHelp() {
+    println("Usage: java -jar ethwalletprefix.jar [options]")
+    println("Options:")
+    println("  --prefix, -p <prefix>  Prefix for generated addresses")
+    println("  --key, -k <key>        Key to encrypt private key with")
+    println("  --help, -h             Show this help message")
+}
 
-    val queue = ConcurrentLinkedQueue<String>()
+fun generatePrivateKey(addressPrefix: String = ""): Pair<String, String> {
+    val possibleChoices = 16.0.pow(addressPrefix.length)
+
+    val queue = ConcurrentLinkedQueue<Pair<String, String>>()
     val numThreads = Runtime.getRuntime().availableProcessors()
     val mutex = ReentrantLock()
 
@@ -39,19 +78,17 @@ fun generatePrivateKey(vararg addressPrefixes: String): String {
                     if (System.currentTimeMillis() - startTime > 1000) {
                         val elapsedTime = System.currentTimeMillis() - startTime
                         val addressesPerSecond = addressesGenerated.get() * 1000 / elapsedTime
-                        println("Addresses per second: $addressesPerSecond, total time estimate: ${possibleChoices / addressesPerSecond.toInt()} seconds")
+                        println("Addresses per second: $addressesPerSecond, total time estimate: ${possibleChoices / addressesPerSecond.toInt()} seconds, possible choices: $possibleChoices")
                         addressesGenerated.set(0)
                         startTime = System.currentTimeMillis()
                     }
                     mutex.unlock()
                 }
 
-                for (addressPrefix in addressPrefixes) {
-                    if (address.startsWith(addressPrefix)) {
-                        val result = Pair(address, privateKey).toString()
-                        queue.add(result)
-                        return@thread
-                    }
+                if (address.startsWith(addressPrefix)) {
+                    val result = Pair(address, privateKey)
+                    queue.add(result)
+                    return@thread
                 }
             }
         }
