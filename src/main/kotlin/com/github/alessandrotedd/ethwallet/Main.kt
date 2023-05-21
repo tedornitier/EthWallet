@@ -15,13 +15,39 @@ import kotlin.math.pow
 fun main(args: Array<String>) {
     var prefix = ""
     var key: String? = null
+    var encryptionKey: String? = null
+    var decryptionKey: String? = null
 
     args.forEachIndexed { index, arg ->
         when (arg) {
-            "--help", "-h" -> { showHelp(); return@main }
             "--prefix", "-p" -> args.getOrNull(index + 1)?.let { prefix = it } ?: run { showHelp(); return@main }
             "--key", "-k" -> args.getOrNull(index + 1)?.let { key = it } ?: run { showHelp(); return@main }
+            "--encrypt", "-e" -> args.getOrNull(index + 1)?.let { encryptionKey = it } ?: run { showHelp(); return@main }
+            "--decrypt", "-d" -> args.getOrNull(index + 1)?.let { decryptionKey = it } ?: run { showHelp(); return@main }
+            "--help", "-h" -> { showHelp(); return@main }
         }
+    }
+
+    encryptionKey?.let { k ->
+        println("Enter the string to encrypt:")
+        val input = readlnOrNull()
+        input?.let {
+            println("Encrypted string: ${encryptString(it, k)}")
+        } ?: run {
+            println("Invalid input")
+        }
+        return@main
+    }
+
+    decryptionKey?.let { k ->
+        println("Enter the string to decrypt:")
+        val input = readlnOrNull()
+        input?.let {
+            println("Decrypted string: ${decryptString(it, k)}")
+        } ?: run {
+            println("Invalid input")
+        }
+        return@main
     }
 
     println(when {
@@ -54,6 +80,8 @@ fun showHelp() {
     println("Options:")
     println("  --prefix, -p <prefix>  Prefix for generated addresses")
     println("  --key, -k <key>        Key to encrypt private key with")
+    println("  --encrypt, -e <key>    Encrypt private key with key")
+    println("  --decrypt, -d <key>    Decrypt private key with key")
     println("  --help, -h             Show this help message")
 }
 
