@@ -1,6 +1,10 @@
 package com.github.alessandrotedd.ethwallet
 
+import kotlinx.coroutines.Dispatchers.Main
 import org.web3j.crypto.Keys
+import java.io.File
+import java.net.URLDecoder
+import java.nio.charset.StandardCharsets
 import java.security.MessageDigest
 import java.util.*
 import java.util.concurrent.ConcurrentLinkedQueue
@@ -75,14 +79,38 @@ fun main(args: Array<String>) {
     }
 }
 
+fun getJarFileName(): String {
+    val path = Main::class.java.protectionDomain.codeSource.location.path
+    val decodedPath = URLDecoder.decode(path, StandardCharsets.UTF_8)
+    val file = File(decodedPath)
+    return file.name
+}
+
 fun showHelp() {
-    println("Usage: java -jar ethwalletprefix.jar [options]")
-    println("Options:")
-    println("  --prefix, -p <prefix>  Prefix for generated addresses")
-    println("  --key, -k <key>        Key to encrypt private key with")
-    println("  --encrypt, -e <key>    Encrypt private key with key")
-    println("  --decrypt, -d <key>    Decrypt private key with key")
-    println("  --help, -h             Show this help message")
+    val jarFileName = getJarFileName()
+
+    println("Usage: java -jar $jarFileName <command> [options]")
+    println("Available commands:")
+    println("- Generate a random address not encrypted:")
+    println("  java -jar $jarFileName generate")
+
+    println("- Generate a random address encrypted using a key:")
+    println("  java -jar $jarFileName generate-encrypted --key <encryption-key>")
+
+    println("- Generate a random address with a prefix not encrypted:")
+    println("  java -jar $jarFileName generate --prefix <prefix>")
+
+    println("- Generate a random address with a prefix encrypted using a key:")
+    println("  java -jar $jarFileName generate-encrypted --prefix <prefix> --key <encryption-key>")
+
+    println("- Decrypt a string using a key:")
+    println("  java -jar $jarFileName decrypt --string <encrypted-string> --key <encryption-key>")
+
+    println("- Encrypt a string using a key:")
+    println("  java -jar $jarFileName encrypt --string <string> --key <encryption-key>")
+
+    println("- Show help:")
+    println("  java -jar $jarFileName --help or java -jar $jarFileName -h")
 }
 
 fun generatePrivateKey(addressPrefix: String = ""): Pair<String, String> {
