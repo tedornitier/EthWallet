@@ -91,7 +91,7 @@ fun handleArgs(args: Array<String>) {
 
 fun getJarFileName(): String {
     val path = Main::class.java.protectionDomain.codeSource.location.path
-    val decodedPath = URLDecoder.decode(path, StandardCharsets.UTF_8)
+    val decodedPath = java.net.URI.create(path).path
     val file = File(decodedPath)
     return file.name
 }
