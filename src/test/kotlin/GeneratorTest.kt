@@ -59,6 +59,7 @@ class GeneratorTest {
             "decrypt --string $encryptedExample --key b",
             "--version",
             "-v",
+            "--help",
             "generate-encrypted --key a --prefix b",
             "encrypt --key b --string a",
             "decrypt --key b --string $encryptedExample"

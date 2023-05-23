@@ -8,7 +8,7 @@ import kotlin.concurrent.thread
 import kotlin.math.pow
 
 fun generatePrivateKey(addressPrefix: String = ""): Pair<String, String> {
-    val possibleChoices = 16.0.pow(addressPrefix.length)
+    val possibleChoices = 16.0.pow(addressPrefix.length).toInt()
 
     val queue = ConcurrentLinkedQueue<Pair<String, String>>()
     val numThreads = Runtime.getRuntime().availableProcessors()
