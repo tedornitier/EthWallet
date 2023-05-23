@@ -8,67 +8,84 @@ import kotlinx.coroutines.Dispatchers.Main
 import java.io.File
 import java.net.URLDecoder
 import java.nio.charset.StandardCharsets
+import java.security.InvalidParameterException
 
 fun main(args: Array<String>) {
-    var prefix = ""
-    var key: String? = null
-    var encryptionKey: String? = null
-    var decryptionKey: String? = null
-
-    args.forEachIndexed { index, arg ->
-        when (arg) {
-            "--prefix", "-p" -> args.getOrNull(index + 1)?.let { prefix = it } ?: run { showHelp(); return@main }
-            "--key", "-k" -> args.getOrNull(index + 1)?.let { key = it } ?: run { showHelp(); return@main }
-            "--encrypt", "-e" -> args.getOrNull(index + 1)?.let { encryptionKey = it } ?: run { showHelp(); return@main }
-            "--decrypt", "-d" -> args.getOrNull(index + 1)?.let { decryptionKey = it } ?: run { showHelp(); return@main }
-            "--help", "-h" -> { showHelp(); return@main }
-        }
+    try {
+        handleArgs(args)
+    } catch (e: IllegalArgumentException) {
+        println(e.message)
+        println("Use --help for more information")
     }
+}
 
-    encryptionKey?.let { k ->
-        println("Enter the string to encrypt:")
-        val input = readlnOrNull()
-        input?.let {
-            println("Encrypted string: ${encryptString(it, k)}")
-        } ?: run {
-            println("Invalid input")
+fun handleArgs(args: Array<String>) {
+    val params = getArgsMap(args.toList())
+    when (val command = args.firstOrNull()) {
+        "generate" -> {
+            val prefix = params.getOrDefault("--prefix", null).let {
+                val toHexize = params.getOrDefault("--hexize", "false").toBoolean()
+                if (toHexize) it?.let { hexize(it) } else it
+            }
+            if (prefix == null) {
+                println("Generating random private key")
+            } else {
+                if (prefix.isEmpty()) throw IllegalArgumentException("Missing prefix. Usage: generate --prefix <prefix>")
+                println("Generating random private key with prefix: $prefix")
+            }
+            generatePrivateKey(prefix ?: "").also {
+                println("Address: 0x${it.first}")
+                println("Private key: ${it.second}")
+            }
         }
-        return@main
-    }
-
-    decryptionKey?.let { k ->
-        println("Enter the string to decrypt:")
-        val input = readlnOrNull()
-        input?.let {
-            println("Decrypted string: ${decryptString(it, k)}")
-        } ?: run {
-            println("Invalid input")
+        "generate-encrypted" -> {
+            val prefix = params.getOrDefault("--prefix", null).let {
+                val toHexize = params.getOrDefault("--hexize", "false").toBoolean()
+                if (toHexize) it?.let { hexize(it) } else it
+            }
+            val key = params.getOrDefault("--key", "")
+            if (key.isEmpty()) {
+                throw IllegalArgumentException("Missing encryption key. Usage: generate-encrypted --prefix <prefix> --key <encryption-key>")
+            }
+            if (prefix == null) {
+                println("Generating random private key, encrypted with key: $key")
+            } else {
+                if (prefix.isEmpty()) throw IllegalArgumentException("Missing prefix. Usage: generate-encrypted --prefix <prefix> --key <encryption-key>")
+                println("Generating random private key with prefix: $prefix, encrypted with key: $key")
+            }
+            generatePrivateKey().also {
+                println("Address: 0x${it.first}")
+                println("Private key: ${encryptString(it.second, key)}")
+            }
         }
-        return@main
-    }
-
-    println(when {
-        prefix.isEmpty() && key == null -> "Generating random private key"
-        prefix.isEmpty() && key != null -> "Generating random private key and encrypting it with key \"$key\""
-        prefix.isNotEmpty() && key == null -> "Generating private key for addresses starting with: $prefix"
-        prefix.isNotEmpty() && key != null -> "Generating private key for addresses starting with: $prefix and encrypting it with key \"$key\""
-        else -> ""
-    })
-
-    generatePrivateKey(hexize(prefix)).let { wallet ->
-        val address = wallet.first
-        val privateKey = wallet.second
-        println("Address: 0x$address")
-        key?.let {
-            encryptString(privateKey, it)
-        } ?: run {
-            privateKey
+        "decrypt" -> {
+            if (params.isEmpty() || !params.containsKey("--string") || !params.containsKey("--key")) {
+                throw IllegalArgumentException("Missing parameters. Usage: decrypt --string <encrypted-string> --key <encryption-key>")
+            }
+            println("Decrypted string:")
+            println(decryptString(params["--string"]!!, params["--key"]!!))
         }
-    }.also { privateKey ->
-        println("Private key ${
-            if (key != null) "encrypted with key \"$key\""
-            else "not encrypted"
-        }: $privateKey")
+        "encrypt" -> {
+            if (params.isEmpty() || !params.containsKey("--string") || !params.containsKey("--key")) {
+                throw IllegalArgumentException("Missing parameters. Usage: encrypt --string <string> --key <encryption-key>")
+            }
+            println("Encrypted string:")
+            println(encryptString(params["--string"]!!, params["--key"]!!))
+        }
+        "--version", "-v" -> {
+            println("Version: 1.1.0") // TODO get version from gradle
+        }
+        "--help", null -> {
+            showHelp()
+        }
+        else -> {
+            throw InvalidParameterException(
+                """
+                Invalid command: "$command"
+                Valid commands are: generate, generate-encrypted, decrypt, encrypt, --version, --help
+                """.trimIndent()
+            )
+        }
     }
 }
 
@@ -102,6 +119,32 @@ fun showHelp() {
     println("- Encrypt a string using a key:")
     println("  java -jar $jarFileName encrypt --string <string> --key <encryption-key>")
 
+    println("- Show version:")
+    println("  java -jar $jarFileName --version or java -jar $jarFileName -v")
+
+    println("- Adding --hexize to any command with --prefix will convert the prefix input to hex (example: 'hello' -> '4e770'):")
+    println("  java -jar $jarFileName generate --prefix <prefix> --hexize")
+
     println("- Show help:")
-    println("  java -jar $jarFileName --help or java -jar $jarFileName -h")
+    println("  java -jar $jarFileName --help")
+}
+
+fun getArgsMap(args: List<String>): Map<String, String> {
+    val map = mutableMapOf<String, String>()
+    val argsWithoutCommand = args.drop(1)
+    val possibleSingleArgs = listOf("--version", "-v", "--help", "--hexize")
+    val pairedArgs = if (argsWithoutCommand.any { it in possibleSingleArgs }) {
+        map.putAll(argsWithoutCommand.filter { it in possibleSingleArgs }.associateWith { "true" })
+        argsWithoutCommand.filter { it !in possibleSingleArgs }
+    } else {
+        argsWithoutCommand
+    }
+    for (i in pairedArgs.indices step 2) {
+        val key = pairedArgs[i]
+        val value = if (i + 1 < pairedArgs.size) pairedArgs[i + 1] else ""
+        if (key.startsWith("--")) {
+            map[key] = value
+        }
+    }
+    return map
 }
