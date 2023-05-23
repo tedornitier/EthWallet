@@ -1,4 +1,8 @@
 import com.github.alessandrotedd.ethwallet.*
+import com.github.alessandrotedd.ethwallet.utils.decryptString
+import com.github.alessandrotedd.ethwallet.utils.encryptString
+import com.github.alessandrotedd.ethwallet.utils.generatePrivateKey
+import com.github.alessandrotedd.ethwallet.utils.hexize
 import org.junit.jupiter.api.Assertions.assertDoesNotThrow
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
@@ -12,7 +16,7 @@ class GeneratorTest {
             // valid cases
             "",
             "--prefix a",
-            "--prefix a --key b",
+            "--prefix a --key abcdef0123456789",
             "--key b",
             "-p a",
             "-p a -k b",
