@@ -1,10 +1,15 @@
 package com.github.alessandrotedd.ethwallet
 
 import androidx.compose.desktop.ui.tooling.preview.Preview
-import androidx.compose.material.Button
-import androidx.compose.material.MaterialTheme
-import androidx.compose.material.Text
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.material.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Window
 import androidx.compose.ui.window.application
 import com.github.alessandrotedd.ethwallet.utils.decryptString
@@ -12,8 +17,13 @@ import com.github.alessandrotedd.ethwallet.utils.encryptString
 import com.github.alessandrotedd.ethwallet.utils.generatePrivateKey
 import com.github.alessandrotedd.ethwallet.utils.hexize
 import kotlinx.coroutines.Dispatchers.Main
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
+import java.awt.Toolkit
+import java.awt.datatransfer.StringSelection
 import java.io.File
 import java.security.InvalidParameterException
+import kotlin.coroutines.coroutineContext
 
 fun main(args: Array<String>) {
     /*try {
@@ -25,16 +35,92 @@ fun main(args: Array<String>) {
     composeApp()
 }
 
+fun copyToClipboard(text: String) {
+    val clipboard = Toolkit.getDefaultToolkit().systemClipboard
+    val selection = StringSelection(text)
+    clipboard.setContents(selection, selection)
+}
+
 @Composable
 @Preview
 fun App() {
-    var text by remember { mutableStateOf("Hello, World!") }
+    var prefix by remember { mutableStateOf("") }
+    var generatedAddress by remember { mutableStateOf("") }
+    var generatedKey by remember { mutableStateOf("") }
+    var copiedMessage by remember { mutableStateOf("") }
+    var isLoading by remember { mutableStateOf(false) }
+    val coroutineScope = rememberCoroutineScope()
+
+    fun copyToClipboard(text: String) {
+        val clipboard = Toolkit.getDefaultToolkit().systemClipboard
+        val selection = StringSelection(text)
+        clipboard.setContents(selection, selection)
+    }
 
     MaterialTheme {
-        Button(onClick = {
-            text = "Hello, Desktop!"
-        }) {
-            Text(text)
+        Column(modifier = Modifier.padding(16.dp)) {
+            OutlinedTextField(
+                value = prefix,
+                onValueChange = { prefix = it },
+                label = { Text("Enter Prefix") }
+            )
+            Button(
+                onClick = {
+                    isLoading = true
+                    copiedMessage = ""
+                    coroutineScope.launch {
+                        val (address, key) = generatePrivateKey(prefix)
+                        generatedAddress = address
+                        generatedKey = key
+                        isLoading = false
+                    }
+                },
+                modifier = Modifier.padding(top = 8.dp)
+            ) {
+                if (isLoading) {
+                    CircularProgressIndicator(
+                        color = MaterialTheme.colors.onPrimary,
+                        modifier = Modifier.size(24.dp)
+                    )
+                } else {
+                    Text("Generate Address")
+                }
+            }
+            if (generatedAddress.isNotEmpty()) {
+                Column(modifier = Modifier.padding(top = 16.dp)) {
+                    Row(modifier = Modifier.padding(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Text(text = generatedAddress)
+                        Button(
+                            onClick = {
+                                copyToClipboard(generatedAddress)
+                                copiedMessage = "Address copied to clipboard!"
+                            },
+                            modifier = Modifier.padding(start = 8.dp)
+                        ) {
+                            Text("Copy")
+                        }
+                    }
+                    Row(modifier = Modifier.padding(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Text(text = generatedKey)
+                        Button(
+                            onClick = {
+                                copyToClipboard(generatedKey)
+                                copiedMessage = "Private key copied to clipboard!"
+                            },
+                            modifier = Modifier.padding(start = 8.dp)
+                        ) {
+                            Text("Copy")
+                        }
+                    }
+                    if (copiedMessage.isNotEmpty()) {
+                        Text(
+                            text = copiedMessage,
+                            color = MaterialTheme.colors.primary,
+                            modifier = Modifier.padding(top = 8.dp)
+                        )
+                    }
+                }
+            }
         }
     }
 }
@@ -59,9 +145,11 @@ fun handleArgs(args: Array<String>) {
                 if (prefix.isEmpty()) throw IllegalArgumentException("Missing prefix. Usage: generate --prefix <prefix>")
                 println("Generating random private key with prefix: $prefix")
             }
-            generatePrivateKey(prefix ?: "").also {
-                println("Address: 0x${it.first}")
-                println("Private key: ${it.second}")
+            runBlocking {
+                generatePrivateKey(prefix ?: "").also {
+                    println("Address: 0x${it.first}")
+                    println("Private key: ${it.second}")
+                }
             }
         }
         "generate-encrypted" -> {
@@ -79,9 +167,11 @@ fun handleArgs(args: Array<String>) {
                 if (prefix.isEmpty()) throw IllegalArgumentException("Missing prefix. Usage: generate-encrypted --prefix <prefix> --key <encryption-key>")
                 println("Generating random private key with prefix: $prefix, encrypted with key: $key")
             }
-            generatePrivateKey().also {
-                println("Address: 0x${it.first}")
-                println("Private key: ${encryptString(it.second, key)}")
+            runBlocking {
+                generatePrivateKey().also {
+                    println("Address: 0x${it.first}")
+                    println("Private key: ${encryptString(it.second, key)}")
+                }
             }
         }
         "decrypt" -> {
