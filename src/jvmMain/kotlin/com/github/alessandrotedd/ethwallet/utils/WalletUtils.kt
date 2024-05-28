@@ -1,5 +1,9 @@
 package com.github.alessandrotedd.ethwallet.utils
 
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.withContext
 import org.web3j.crypto.Keys
 import java.util.concurrent.ConcurrentLinkedQueue
 import java.util.concurrent.atomic.AtomicInteger
@@ -7,47 +11,51 @@ import java.util.concurrent.locks.ReentrantLock
 import kotlin.concurrent.thread
 import kotlin.math.pow
 
-fun generatePrivateKey(addressPrefix: String = ""): Pair<String, String> {
-    val possibleChoices = 16.0.pow(addressPrefix.length).toInt()
+suspend fun generatePrivateKey(addressPrefix: String = ""): Pair<String, String> {
+    return withContext(Dispatchers.Default) {
+        val possibleChoices = 16.0.pow(addressPrefix.length).toInt()
 
-    val queue = ConcurrentLinkedQueue<Pair<String, String>>()
-    val numThreads = Runtime.getRuntime().availableProcessors()
-    val mutex = ReentrantLock()
+        val queue = ConcurrentLinkedQueue<Pair<String, String>>()
+        val numThreads = Runtime.getRuntime().availableProcessors()
+        val mutex = ReentrantLock()
 
-    var startTime = System.currentTimeMillis()
-    val addressesGenerated = AtomicInteger(0)
+        var startTime = System.currentTimeMillis()
+        val addressesGenerated = AtomicInteger(0)
 
-    val threadPool = Array(numThreads) {
-        thread {
-            while (true) {
-                val ecKeyPair = Keys.createEcKeyPair()
-                val privateKey = ecKeyPair.privateKey.toString(16).padStart(64, '0')
-                val address = Keys.getAddress(ecKeyPair.publicKey)
+        val threadPool = List(numThreads) {
+            async {
+                while (queue.isEmpty()) {
+                    val ecKeyPair = Keys.createEcKeyPair()
+                    val privateKey = ecKeyPair.privateKey.toString(16).padStart(64, '0')
+                    val address = Keys.getAddress(ecKeyPair.publicKey)
 
-                addressesGenerated.incrementAndGet()
-                if (System.currentTimeMillis() - startTime > 1000) {
-                    mutex.lock()
+                    addressesGenerated.incrementAndGet()
                     if (System.currentTimeMillis() - startTime > 1000) {
-                        val elapsedTime = System.currentTimeMillis() - startTime
-                        val addressesPerSecond = addressesGenerated.get() * 1000 / elapsedTime
-                        println("Addresses per second: $addressesPerSecond, total time estimate: ${possibleChoices / addressesPerSecond.toInt()} seconds, possible choices: $possibleChoices")
-                        addressesGenerated.set(0)
-                        startTime = System.currentTimeMillis()
+                        mutex.lock()
+                        try {
+                            if (System.currentTimeMillis() - startTime > 1000) {
+                                val elapsedTime = System.currentTimeMillis() - startTime
+                                val addressesPerSecond = addressesGenerated.get() * 1000 / elapsedTime
+                                println("Addresses per second: $addressesPerSecond, total time estimate: ${possibleChoices / addressesPerSecond.toInt()} seconds, possible choices: $possibleChoices")
+                                addressesGenerated.set(0)
+                                startTime = System.currentTimeMillis()
+                            }
+                        } finally {
+                            mutex.unlock()
+                        }
                     }
-                    mutex.unlock()
-                }
 
-                if (address.startsWith(addressPrefix)) {
-                    val result = Pair(address, privateKey)
-                    queue.add(result)
-                    return@thread
+                    if (address.startsWith(addressPrefix)) {
+                        val result = Pair(address, privateKey)
+                        queue.add(result)
+                    }
                 }
             }
         }
-    }
 
-    threadPool.forEach { it.join() }
-    return queue.poll()!!
+        threadPool.awaitAll()
+        queue.poll()!!
+    }
 }
 
 fun hexize(input: String): String {
