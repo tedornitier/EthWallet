@@ -23,7 +23,6 @@ import java.awt.Toolkit
 import java.awt.datatransfer.StringSelection
 import java.io.File
 import java.security.InvalidParameterException
-import kotlin.coroutines.coroutineContext
 
 fun main(args: Array<String>) {
     /*try {
@@ -69,7 +68,7 @@ fun App() {
                     isLoading = true
                     copiedMessage = ""
                     coroutineScope.launch {
-                        val (address, key) = generatePrivateKey(prefix)
+                        val (address, key) = generatePrivateKey(hexize(prefix))
                         generatedAddress = address
                         generatedKey = key
                         isLoading = false
@@ -136,8 +135,8 @@ fun handleArgs(args: Array<String>) {
         "gui" -> composeApp()
         "generate" -> {
             val prefix = params.getOrDefault("--prefix", null).let {
-                val toHexize = params.getOrDefault("--hexize", "false").toBoolean()
-                if (toHexize) it?.let { hexize(it) } else it
+                val shouldHexize = params.getOrDefault("--hexize", "false").toBoolean()
+                if (shouldHexize) it?.let { hexize(it) } else it
             }
             if (prefix == null) {
                 println("Generating random private key")
